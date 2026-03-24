@@ -88,8 +88,10 @@ fprintf(fid, 'rng_seed=%s\n', num2str(rng_seed));
 fprintf(fid, 'T_DA_len=%d\n', numel(T_DA));
 fprintf(fid, 'T_RT_len=%d\n', numel(T_RT));
 fprintf(fid, 'violation_list=%s\n', mat2str(violation_list));
-fprintf(fid, 'note_total_violation=raw_time_step_sum\n');
-fprintf(fid, 'note_total_violation_energy=0.25*total_violation (15-min energy)\n');
+fprintf(fid, 'note_total_violation=raw sum of 15-min violation slack series\n');
+fprintf(fid, 'note_total_violation_energy=0.25h * total_violation\n');
+fprintf(fid, 'note_violation_rate_all_denom=total_commitment_all (MG lease + SESO commitments)\n');
+fprintf(fid, 'note_violation_rate_mg_only_denom=total_commitment_mg_lease (MG lease only)\n');
 fprintf(fid, 'elapsed_sec=%.6f\n', toc(global_tic));
 fclose(fid);
 
@@ -319,42 +321,103 @@ end
 
 
 function y = safe_div(num, den)
-    if isempty(den) || isnan(den) || abs(den) < 1e-12
-        y = 0;
-    else
+    if isempty(den) || isnan(den)
+        y = NaN;
+        return;
+    end
+    if abs(den) > 1e-12
         y = num / den;
+    else
+        if abs(num) <= 1e-12
+            y = 0;
+        else
+            y = NaN;
+        end
     end
 end
 
 function make_basic_plots(summary_table, plot_dir)
     if isempty(summary_table), return; end
+
+    if ~exist(plot_dir, 'dir'), mkdir(plot_dir); end
+
+    % 兼容旧summary：若缺字段则补算
+    if ~ismember('total_violation_energy', summary_table.Properties.VariableNames)
+        summary_table.total_violation_energy = 0.25 * summary_table.total_violation;
+    end
+    if ~ismember('violation_rate_all', summary_table.Properties.VariableNames)
+        summary_table.violation_rate_all = arrayfun(@(n,d) safe_div(n,d), ...
+            summary_table.total_violation_energy, summary_table.total_commitment_all);
+    end
+    if ~ismember('total_violation_mg_only', summary_table.Properties.VariableNames)
+        summary_table.total_violation_mg_only = summary_table.mg1_violation_total + summary_table.mg2_violation_total + summary_table.mg3_violation_total;
+    end
+    if ~ismember('total_violation_energy_mg_only', summary_table.Properties.VariableNames)
+        summary_table.total_violation_energy_mg_only = 0.25 * summary_table.total_violation_mg_only;
+    end
+    if ~ismember('violation_rate_mg_only', summary_table.Properties.VariableNames)
+        summary_table.violation_rate_mg_only = arrayfun(@(n,d) safe_div(n,d), ...
+            summary_table.total_violation_energy_mg_only, summary_table.total_commitment_mg_lease);
+    end
+
     p = summary_table.penalty_value;
 
+    % 清理同名旧图，避免口径混淆
+    target_files = {
+        'penalty_vs_violation_rate_all.png', ...
+        'penalty_vs_violation_rate_mg_only.png', ...
+        'penalty_vs_violation_energy.png', ...
+        'pareto_cost_vs_violation_rate_all.png', ...
+        'pareto_cost_vs_violation_rate_mg_only.png', ...
+        'penalty_vs_total_violation_raw.png'};
+    for i = 1:numel(target_files)
+        f = fullfile(plot_dir, target_files{i});
+        if exist(f, 'file'), delete(f); end
+    end
+
+    % 1) Penalty vs Violation Rate (All)
+    fig = figure('Visible', 'off');
+    semilogx(p, summary_table.violation_rate_all, 'o-', 'LineWidth', 1.5);
+    xlabel('Penalty'); ylabel('Violation rate');
+    title('Penalty vs Violation Rate (All Commitments)'); grid on;
+    saveas(fig, fullfile(plot_dir, 'penalty_vs_violation_rate_all.png')); close(fig);
+
+    % 2) Penalty vs Violation Rate (MG lease only)
+    fig = figure('Visible', 'off');
+    semilogx(p, summary_table.violation_rate_mg_only, 'o-', 'LineWidth', 1.5);
+    xlabel('Penalty'); ylabel('Violation rate');
+    title('Penalty vs Violation Rate (MG Lease Only)'); grid on;
+    saveas(fig, fullfile(plot_dir, 'penalty_vs_violation_rate_mg_only.png')); close(fig);
+
+    % 3) Penalty vs Violation Energy
+    fig = figure('Visible', 'off');
+    semilogx(p, summary_table.total_violation_energy, 'o-', 'LineWidth', 1.5);
+    xlabel('Penalty'); ylabel('Violation energy');
+    title('Penalty vs Violation Energy'); grid on;
+    saveas(fig, fullfile(plot_dir, 'penalty_vs_violation_energy.png')); close(fig);
+
+    % 4) Pareto: cost vs violation rate (all)
+    fig = figure('Visible', 'off');
+    scatter(summary_table.violation_rate_all, summary_table.actual_operating_cost_excl_penalty, 60, summary_table.penalty_value, 'filled');
+    xlabel('Violation rate (all commitments)');
+    ylabel('Actual operating cost (excl. penalty)');
+    title('Pareto: Cost vs Violation Rate (All Commitments)');
+    grid on; colorbar;
+    saveas(fig, fullfile(plot_dir, 'pareto_cost_vs_violation_rate_all.png')); close(fig);
+
+    % 5) Pareto: cost vs violation rate (MG only)
+    fig = figure('Visible', 'off');
+    scatter(summary_table.violation_rate_mg_only, summary_table.actual_operating_cost_excl_penalty, 60, summary_table.penalty_value, 'filled');
+    xlabel('Violation rate (MG lease only)');
+    ylabel('Actual operating cost (excl. penalty)');
+    title('Pareto: Cost vs Violation Rate (MG Lease Only)');
+    grid on; colorbar;
+    saveas(fig, fullfile(plot_dir, 'pareto_cost_vs_violation_rate_mg_only.png')); close(fig);
+
+    % 可选附加图：raw口径
     fig = figure('Visible', 'off');
     semilogx(p, summary_table.total_violation, 'o-', 'LineWidth', 1.5);
-    xlabel('Penalty'); ylabel('Total violation'); title('Penalty vs Total Violation'); grid on;
-    saveas(fig, fullfile(plot_dir, 'penalty_vs_total_violation.png')); close(fig);
-
-    fig = figure('Visible', 'off');
-    semilogx(p, summary_table.actual_operating_cost_excl_penalty, 'o-', 'LineWidth', 1.5);
-    xlabel('Penalty'); ylabel('Actual operating cost (excl. penalty)'); title('Penalty vs Actual Operating Cost'); grid on;
-    saveas(fig, fullfile(plot_dir, 'penalty_vs_actual_operating_cost.png')); close(fig);
-
-    fig = figure('Visible', 'off');
-    semilogx(p, summary_table.penalty_cost, 'o-', 'LineWidth', 1.5);
-    xlabel('Penalty'); ylabel('Penalty cost'); title('Penalty vs Penalty Cost'); grid on;
-    saveas(fig, fullfile(plot_dir, 'penalty_vs_penalty_cost.png')); close(fig);
-
-    fig = figure('Visible', 'off');
-    semilogx(p, summary_table.seso_throughput, 'o-', 'LineWidth', 1.5); hold on;
-    semilogx(p, summary_table.mg1_battery_throughput, 's-', 'LineWidth', 1.2);
-    semilogx(p, summary_table.mg2_battery_throughput, '^-', 'LineWidth', 1.2);
-    semilogx(p, summary_table.mg3_battery_throughput, 'd-', 'LineWidth', 1.2);
-    xlabel('Penalty'); ylabel('Throughput'); title('Penalty vs Resource Usage'); legend('SESO', 'MG1', 'MG2', 'MG3', 'Location', 'best'); grid on;
-    saveas(fig, fullfile(plot_dir, 'penalty_vs_resource_usage.png')); close(fig);
-
-    fig = figure('Visible', 'off');
-    scatter(summary_table.total_violation, summary_table.actual_operating_cost_excl_penalty, 60, summary_table.penalty_value, 'filled');
-    xlabel('Total violation'); ylabel('Actual operating cost (excl. penalty)'); title('Pareto: Cost vs Violation'); grid on; colorbar;
-    saveas(fig, fullfile(plot_dir, 'pareto_cost_vs_violation.png')); close(fig);
+    xlabel('Penalty'); ylabel('Total violation (raw sum)');
+    title('Penalty vs Total Violation (Raw)'); grid on;
+    saveas(fig, fullfile(plot_dir, 'penalty_vs_total_violation_raw.png')); close(fig);
 end
