@@ -248,14 +248,14 @@ function ts_tbl = build_timeseries_table(T_RT, plan_DA, actual_operation, violat
     ts_tbl.v_seso_c = violation_series.v_seso_c(:);
     ts_tbl.v_seso_d = violation_series.v_seso_d(:);
 
-    ts_tbl.plan_mg1_lease_c = plan_DA.P_mg1_lease_c(hour_idx(:));
-    ts_tbl.plan_mg1_lease_d = plan_DA.P_mg1_lease_d(hour_idx(:));
-    ts_tbl.plan_mg2_lease_c = plan_DA.P_mg2_lease_c(hour_idx(:));
-    ts_tbl.plan_mg2_lease_d = plan_DA.P_mg2_lease_d(hour_idx(:));
-    ts_tbl.plan_mg3_lease_c = plan_DA.P_mg3_lease_c(hour_idx(:));
-    ts_tbl.plan_mg3_lease_d = plan_DA.P_mg3_lease_d(hour_idx(:));
-    ts_tbl.plan_seso_ch = plan_DA.P_seso_ch(hour_idx(:));
-    ts_tbl.plan_seso_dis = plan_DA.P_seso_dis(hour_idx(:));
+    ts_tbl.plan_mg1_lease_c = reshape(plan_DA.P_mg1_lease_c(hour_idx), [], 1);
+    ts_tbl.plan_mg1_lease_d = reshape(plan_DA.P_mg1_lease_d(hour_idx), [], 1);
+    ts_tbl.plan_mg2_lease_c = reshape(plan_DA.P_mg2_lease_c(hour_idx), [], 1);
+    ts_tbl.plan_mg2_lease_d = reshape(plan_DA.P_mg2_lease_d(hour_idx), [], 1);
+    ts_tbl.plan_mg3_lease_c = reshape(plan_DA.P_mg3_lease_c(hour_idx), [], 1);
+    ts_tbl.plan_mg3_lease_d = reshape(plan_DA.P_mg3_lease_d(hour_idx), [], 1);
+    ts_tbl.plan_seso_ch = reshape(plan_DA.P_seso_ch(hour_idx), [], 1);
+    ts_tbl.plan_seso_dis = reshape(plan_DA.P_seso_dis(hour_idx), [], 1);
 end
 
 function make_basic_plots(summary_table, plot_dir)
