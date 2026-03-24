@@ -5,6 +5,8 @@ fprintf('======================================================\n');
 fprintf('      配电网-微网多时间尺度协同调度程序 V2.0 (集中式日内) \n');
 fprintf('======================================================\n\n');
 
+check_solver_available();
+
 %% 1. 系统参数定义
 T_DA = 1:24;
 T_RT = (15/60):(15/60):24; % 96个15分钟点
@@ -27,10 +29,11 @@ fprintf('日前调度完成，已生成24小时运行计划，并保存至 plan_
 
 %% 4. 日内滚动调度 (Intra-day Rolling Scheduling)
 fprintf('(3/4) 开始执行日内滚动调度 (总共 %d 个时间点)...\n', length(T_RT));
-actual_operation = run_intraday_process(plan_DA, dso_data, mg_data, T_RT, H);
+params = struct('violation', 50, 'fail_fast', true);
+[actual_operation, run_stats] = run_intraday_process(plan_DA, dso_data, mg_data, T_RT, H, params);
 fprintf('日内滚动调度全部完成。\n\n');
 
-save('intraday_results.mat', 'actual_operation', 'plan_DA');
+save('intraday_results.mat', 'actual_operation', 'plan_DA', 'run_stats');
 fprintf('日内结果已保存到 intraday_results.mat。\n');
 
 fprintf('(4/4) 全流程完成。\n');

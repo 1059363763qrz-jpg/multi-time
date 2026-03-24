@@ -5,6 +5,8 @@ fprintf('========================================\n');
 fprintf('      日内调度独立运行入口\n');
 fprintf('========================================\n\n');
 
+check_solver_available();
+
 if ~isfile('plan_DA.mat')
     error('未找到 plan_DA.mat，请先运行 run_day_ahead_only.m');
 end
@@ -39,9 +41,10 @@ mg_data = prepare_data_MGs(T_DA, T_RT);
 fprintf('数据准备完成。\n\n');
 
 fprintf('(2/3) 开始执行日内滚动调度 (总共 %d 个时间点)...\n', length(T_RT));
-actual_operation = run_intraday_process(plan_DA, dso_data, mg_data, T_RT, H);
+params = struct('violation', 50, 'fail_fast', true);
+[actual_operation, run_stats] = run_intraday_process(plan_DA, dso_data, mg_data, T_RT, H, params);
 fprintf('日内滚动调度全部完成。\n\n');
 
 fprintf('(3/3) 正在保存日内结果...\n');
-save('intraday_results.mat', 'actual_operation', 'plan_DA');
+save('intraday_results.mat', 'actual_operation', 'plan_DA', 'run_stats');
 fprintf('日内结果已保存到 intraday_results.mat。\n');
