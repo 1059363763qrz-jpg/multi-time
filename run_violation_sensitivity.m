@@ -88,6 +88,8 @@ fprintf(fid, 'rng_seed=%s\n', num2str(rng_seed));
 fprintf(fid, 'T_DA_len=%d\n', numel(T_DA));
 fprintf(fid, 'T_RT_len=%d\n', numel(T_RT));
 fprintf(fid, 'violation_list=%s\n', mat2str(violation_list));
+fprintf(fid, 'note_total_violation=raw_time_step_sum\n');
+fprintf(fid, 'note_total_violation_energy=0.25*total_violation (15-min energy)\n');
 fprintf(fid, 'elapsed_sec=%.6f\n', toc(global_tic));
 fclose(fid);
 
@@ -113,6 +115,40 @@ function summary = build_summary(plan_DA, actual_operation, run_stats, penalty_v
     violation_charge_total = mg1_c + mg2_c + mg3_c + seso_c;
     violation_discharge_total = mg1_d + mg2_d + mg3_d + seso_d;
     total_violation = violation_charge_total + violation_discharge_total;
+
+    % 能量口径(15分钟=0.25h)
+    violation_charge_energy = 0.25 * violation_charge_total;
+    violation_discharge_energy = 0.25 * violation_discharge_total;
+    total_violation_energy = 0.25 * total_violation;
+
+    % 日前承诺总量（功率时序求和口径）
+    mg1_commitment_total = nansum(plan_DA.P_mg1_lease_c + plan_DA.P_mg1_lease_d);
+    mg2_commitment_total = nansum(plan_DA.P_mg2_lease_c + plan_DA.P_mg2_lease_d);
+    mg3_commitment_total = nansum(plan_DA.P_mg3_lease_c + plan_DA.P_mg3_lease_d);
+    seso_commitment_total = nansum(plan_DA.P_seso_ch + plan_DA.P_seso_dis);
+    total_commitment_mg_lease = mg1_commitment_total + mg2_commitment_total + mg3_commitment_total;
+    total_commitment_all = total_commitment_mg_lease + seso_commitment_total;
+
+    mg1_violation_total = mg1_c + mg1_d;
+    mg2_violation_total = mg2_c + mg2_d;
+    mg3_violation_total = mg3_c + mg3_d;
+    seso_violation_total = seso_c + seso_d;
+
+    mg1_violation_energy = 0.25 * mg1_violation_total;
+    mg2_violation_energy = 0.25 * mg2_violation_total;
+    mg3_violation_energy = 0.25 * mg3_violation_total;
+    seso_violation_energy = 0.25 * seso_violation_total;
+
+    total_violation_mg_only = mg1_violation_total + mg2_violation_total + mg3_violation_total;
+    total_violation_energy_mg_only = 0.25 * total_violation_mg_only;
+
+    % 安全除法，分母为0时返回0
+    violation_rate_all = safe_div(total_violation_energy, total_commitment_all);
+    violation_rate_mg_only = safe_div(total_violation_energy_mg_only, total_commitment_mg_lease);
+    mg1_violation_rate = safe_div(mg1_violation_energy, mg1_commitment_total);
+    mg2_violation_rate = safe_div(mg2_violation_energy, mg2_commitment_total);
+    mg3_violation_rate = safe_div(mg3_violation_energy, mg3_commitment_total);
+    seso_violation_rate = safe_div(seso_violation_energy, seso_commitment_total);
 
     penalty_cost = nansum(run_stats.cost_step.penalty_cost);
     adjustment_cost = nansum(run_stats.cost_step.adjustment_cost);
@@ -152,13 +188,36 @@ function summary = build_summary(plan_DA, actual_operation, run_stats, penalty_v
     summary.solve_time_avg = run_stats.solve_time_avg;
 
     summary.total_violation = total_violation;
-    summary.mg1_violation_total = mg1_c + mg1_d;
-    summary.mg2_violation_total = mg2_c + mg2_d;
-    summary.mg3_violation_total = mg3_c + mg3_d;
-    summary.seso_violation_total = seso_c + seso_d;
-
+    summary.total_violation_energy = total_violation_energy;
     summary.violation_charge_total = violation_charge_total;
     summary.violation_discharge_total = violation_discharge_total;
+    summary.violation_charge_energy = violation_charge_energy;
+    summary.violation_discharge_energy = violation_discharge_energy;
+
+    summary.mg1_violation_total = mg1_violation_total;
+    summary.mg2_violation_total = mg2_violation_total;
+    summary.mg3_violation_total = mg3_violation_total;
+    summary.seso_violation_total = seso_violation_total;
+    summary.mg1_violation_energy = mg1_violation_energy;
+    summary.mg2_violation_energy = mg2_violation_energy;
+    summary.mg3_violation_energy = mg3_violation_energy;
+    summary.seso_violation_energy = seso_violation_energy;
+
+    summary.total_commitment_all = total_commitment_all;
+    summary.total_commitment_mg_lease = total_commitment_mg_lease;
+    summary.total_violation_mg_only = total_violation_mg_only;
+    summary.total_violation_energy_mg_only = total_violation_energy_mg_only;
+    summary.violation_rate_all = violation_rate_all;
+    summary.violation_rate_mg_only = violation_rate_mg_only;
+
+    summary.mg1_commitment_total = mg1_commitment_total;
+    summary.mg2_commitment_total = mg2_commitment_total;
+    summary.mg3_commitment_total = mg3_commitment_total;
+    summary.seso_commitment_total = seso_commitment_total;
+    summary.mg1_violation_rate = mg1_violation_rate;
+    summary.mg2_violation_rate = mg2_violation_rate;
+    summary.mg3_violation_rate = mg3_violation_rate;
+    summary.seso_violation_rate = seso_violation_rate;
 
     summary.mg1_charge_violation_total = mg1_c;
     summary.mg1_discharge_violation_total = mg1_d;
@@ -256,6 +315,15 @@ function ts_tbl = build_timeseries_table(T_RT, plan_DA, actual_operation, violat
     ts_tbl.plan_mg3_lease_d = reshape(plan_DA.P_mg3_lease_d(hour_idx), [], 1);
     ts_tbl.plan_seso_ch = reshape(plan_DA.P_seso_ch(hour_idx), [], 1);
     ts_tbl.plan_seso_dis = reshape(plan_DA.P_seso_dis(hour_idx), [], 1);
+end
+
+
+function y = safe_div(num, den)
+    if isempty(den) || isnan(den) || abs(den) < 1e-12
+        y = 0;
+    else
+        y = num / den;
+    end
 end
 
 function make_basic_plots(summary_table, plot_dir)
