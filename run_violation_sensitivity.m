@@ -366,6 +366,8 @@ function make_basic_plots(summary_table, plot_dir)
     target_files = {
         'penalty_vs_violation_rate_all.png', ...
         'penalty_vs_violation_rate_mg_only.png', ...
+        'penalty_violation_sensitivity_combined.png', ...
+        'penalty_violation_sensitivity_combined.fig', ...
         'penalty_vs_violation_energy.png', ...
         'pareto_cost_vs_violation_rate_all.png', ...
         'pareto_cost_vs_violation_rate_mg_only.png', ...
@@ -375,19 +377,35 @@ function make_basic_plots(summary_table, plot_dir)
         if exist(f, 'file'), delete(f); end
     end
 
-    % 1) Penalty vs Violation Rate (All)
-    fig = figure('Visible', 'off');
-    semilogx(p, summary_table.violation_rate_all, 'o-', 'LineWidth', 1.5);
-    xlabel('Penalty'); ylabel('Violation rate');
-    title('Penalty vs Violation Rate (All Commitments)'); grid on;
-    saveas(fig, fullfile(plot_dir, 'penalty_vs_violation_rate_all.png')); close(fig);
-
-    % 2) Penalty vs Violation Rate (MG lease only)
-    fig = figure('Visible', 'off');
-    semilogx(p, summary_table.violation_rate_mg_only, 'o-', 'LineWidth', 1.5);
-    xlabel('Penalty'); ylabel('Violation rate');
-    title('Penalty vs Violation Rate (MG Lease Only)'); grid on;
-    saveas(fig, fullfile(plot_dir, 'penalty_vs_violation_rate_mg_only.png')); close(fig);
+    % 1) Combined: Penalty vs Violation Rate (All + MG lease only)
+    combined_fig = figure('Color', 'w', 'Position', [160, 140, 1000, 560], 'Visible', 'on');
+    marker_idx = 1:max(1, floor(numel(p)/6)):numel(p);
+    semilogx(p, summary_table.violation_rate_all * 100, '-o', ...
+        'LineWidth', 2.0, 'MarkerSize', 7, 'MarkerIndices', marker_idx, ...
+        'Color', [0.00, 0.45, 0.74], 'MarkerFaceColor', [0.80, 0.90, 0.98], ...
+        'MarkerEdgeColor', [0.00, 0.45, 0.74]);
+    hold on;
+    semilogx(p, summary_table.violation_rate_mg_only * 100, '--d', ...
+        'LineWidth', 2.0, 'MarkerSize', 7, 'MarkerIndices', marker_idx, ...
+        'Color', [0.85, 0.33, 0.10], 'MarkerFaceColor', [0.99, 0.90, 0.82], ...
+        'MarkerEdgeColor', [0.85, 0.33, 0.10]);
+    hold off;
+    xlabel('Default penalty coefficient', 'FontSize', 17);
+    ylabel('Violation rate (%)', 'FontSize', 17);
+    ax = gca;
+    ax.FontSize = 14;
+    ax.LineWidth = 1.1;
+    ax.TickDir = 'out';
+    ax.Box = 'off';
+    ax.XColor = [0.1, 0.1, 0.1];
+    ax.YColor = [0.1, 0.1, 0.1];
+    ax.Layer = 'top';
+    ax.Position = [0.11, 0.16, 0.86, 0.78];
+    legend_obj = legend({'All commitments', 'MG lease only'}, 'FontSize', 13, 'Location', 'northeast');
+    legend_obj.Box = 'off';
+    grid off;
+    exportgraphics(combined_fig, fullfile(plot_dir, 'penalty_violation_sensitivity_combined.png'), 'Resolution', 300);
+    savefig(combined_fig, fullfile(plot_dir, 'penalty_violation_sensitivity_combined.fig'));
 
     % 3) Penalty vs Violation Energy
     fig = figure('Visible', 'off');
@@ -420,4 +438,9 @@ function make_basic_plots(summary_table, plot_dir)
     xlabel('Penalty'); ylabel('Total violation (raw sum)');
     title('Penalty vs Total Violation (Raw)'); grid on;
     saveas(fig, fullfile(plot_dir, 'penalty_vs_total_violation_raw.png')); close(fig);
+
+    % Keep the combined figure visible for manual export (e.g., EMF)
+    drawnow;
+    figure(combined_fig);
+    shg;
 end
