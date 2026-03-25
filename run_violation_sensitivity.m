@@ -378,21 +378,32 @@ function make_basic_plots(summary_table, plot_dir)
     end
 
     % 1) Combined: Penalty vs Violation Rate (All + MG lease only)
-    combined_fig = figure('Color', 'w', 'Position', [200, 150, 900, 600], 'Visible', 'on');
+    combined_fig = figure('Color', 'w', 'Position', [160, 140, 1000, 560], 'Visible', 'on');
+    marker_idx = 1:max(1, floor(numel(p)/6)):numel(p);
     semilogx(p, summary_table.violation_rate_all * 100, '-o', ...
-        'LineWidth', 2.2, 'MarkerSize', 8, 'Color', [0.00, 0.45, 0.74], ...
-        'MarkerFaceColor', [0.00, 0.45, 0.74]);
+        'LineWidth', 2.0, 'MarkerSize', 7, 'MarkerIndices', marker_idx, ...
+        'Color', [0.00, 0.45, 0.74], 'MarkerFaceColor', [0.80, 0.90, 0.98], ...
+        'MarkerEdgeColor', [0.00, 0.45, 0.74]);
     hold on;
-    semilogx(p, summary_table.violation_rate_mg_only * 100, '--s', ...
-        'LineWidth', 2.2, 'MarkerSize', 8, 'Color', [0.85, 0.33, 0.10], ...
-        'MarkerFaceColor', [0.85, 0.33, 0.10]);
+    semilogx(p, summary_table.violation_rate_mg_only * 100, '--d', ...
+        'LineWidth', 2.0, 'MarkerSize', 7, 'MarkerIndices', marker_idx, ...
+        'Color', [0.85, 0.33, 0.10], 'MarkerFaceColor', [0.99, 0.90, 0.82], ...
+        'MarkerEdgeColor', [0.85, 0.33, 0.10]);
     hold off;
-    xlabel('Default penalty coefficient', 'FontSize', 16);
-    ylabel('Violation rate (%)', 'FontSize', 16);
-    set(gca, 'FontSize', 14, 'LineWidth', 1.2);
-    legend({'All commitments', 'MG lease only'}, 'FontSize', 13, 'Location', 'best');
-    grid on;
-    box on;
+    xlabel('Default penalty coefficient', 'FontSize', 17);
+    ylabel('Violation rate (%)', 'FontSize', 17);
+    ax = gca;
+    ax.FontSize = 14;
+    ax.LineWidth = 1.1;
+    ax.TickDir = 'out';
+    ax.Box = 'off';
+    ax.XColor = [0.1, 0.1, 0.1];
+    ax.YColor = [0.1, 0.1, 0.1];
+    ax.Layer = 'top';
+    ax.Position = [0.11, 0.16, 0.86, 0.78];
+    legend_obj = legend({'All commitments', 'MG lease only'}, 'FontSize', 13, 'Location', 'northeast');
+    legend_obj.Box = 'off';
+    grid off;
     exportgraphics(combined_fig, fullfile(plot_dir, 'penalty_violation_sensitivity_combined.png'), 'Resolution', 300);
     savefig(combined_fig, fullfile(plot_dir, 'penalty_violation_sensitivity_combined.fig'));
 
